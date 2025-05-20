@@ -456,6 +456,46 @@
 <script type="module" src="controller/ItemController.js"></script>
 <script type="module" src="controller/OrderController.js"></script>
 
+<script>
+    $(document).ready(function () {
+        $("#store_content").hide();
+        $("#customer_content").hide();
+        $("#order_content").hide();
+        $("#invoice-content").hide();
+    });
+
+    $("#dash-btn").on("click", function () {
+        $("#dashboard_content").css("display", "block");
+        $("#store_content").css("display", "none");
+        $("#customer_content").css("display", "none");
+        $("#order_content").css("display", "none");
+        $("#invoice-content").css("display", "none");
+    });
+
+    $("#store-btn").on("click", function () {
+        $("#store_content").css("display", "block");
+        $("#dashboard_content").css("display", "none");
+        $("#customer_content").css("display", "none");
+        $("#order_content").css("display", "none");
+        $("#invoice-content").css("display", "none");
+    });
+
+    $("#customer-btn").on("click", function () {
+        $("#customer_content").css("display", "block");
+        $("#store_content").css("display", "none");
+        $("#dashboard_content").css("display", "none");
+        $("#order_content").css("display", "none");
+        $("#invoice-content").css("display", "none");
+    });
+
+    $("#order-btn").on("click", function () {
+        $("#order_content").css("display", "block");
+        $("#store_content").css("display", "none");
+        $("#customer_content").css("display", "none");
+        $("#dashboard_content").css("display", "none");
+        $("#invoice-content").css("display", "none");
+    });
+</script>
 
 </body>
 </html>
