@@ -1,4 +1,4 @@
-import {item_db} from "../db/db.js";
+import { item_db } from "../db/db.js";
 import ItemModel from "../model/ItemModel.js";
 
 let selectedItemIndex = -1;
@@ -40,6 +40,9 @@ function loadItems() {
                       <td>${item.barcode || '-'}</td>
                       <td>${item.desc || '-'}</td>
                       <td>
+                          <button class="btn btn-sm btn-warning edit-item-btn me-1" data-index="${index}">
+                              <i class="bi bi-pencil"></i>
+                          </button>
                           <button class="btn btn-sm btn-danger delete-item-btn" data-index="${index}">
                               <i class="bi bi-trash"></i>
                           </button>
@@ -109,22 +112,23 @@ $('#product_save').on('click', function () {
         // Convert ID to number if it's in P001 format
         const numericId = id.startsWith('P') ? parseInt(id.substring(1)) : parseInt(id);
 
-        let item_data = new ItemModel(
-            numericId,
-            name,
-            price,
-            qty,
-            desc,
-            category,
-            barcode || null
+        // Create new item using ItemModel
+        let item = new ItemModel(
+            numericId,    // id
+            name,        // name
+            price,       // price
+            category,    // category
+            qty,         // qty
+            barcode,     // barcode
+            desc         // desc
         );
 
         if (selectedItemIndex !== -1) {
             // Update existing item
-            item_db[selectedItemIndex] = item_data;
+            item_db[selectedItemIndex] = item;
         } else {
             // Add new item
-            item_db.push(item_data);
+            item_db.push(item);
             generateNextItemId(); // Generate next ID for new items
         }
 
@@ -148,14 +152,12 @@ $('#product_save').on('click', function () {
     }
 });
 
-// Select an item from the table
-$('#store_tbody').on('click', 'tr', function (e) {
-    if ($(e.target).hasClass('delete-item-btn') || $(e.target).parents('.delete-item-btn').length) {
-        return;
-    }
+// Edit item function
+function editItem(index) {
+    if (index === -1 || index >= item_db.length) return;
 
-    selectedItemIndex = $(this).data('index');
-    const item = item_db[selectedItemIndex];
+    selectedItemIndex = index;
+    const item = item_db[index];
 
     // Format ID with P prefix if it's a number
     const displayId = typeof item.id === 'number' ? 'P' + String(item.id).padStart(3, '0') : item.id;
@@ -169,7 +171,7 @@ $('#store_tbody').on('click', 'tr', function (e) {
     $('#productDescription').val(item.desc || '');
 
     $('#addProductModal').modal('show');
-});
+}
 
 // Delete item function
 function deleteItem(index) {
@@ -203,7 +205,7 @@ function deleteItem(index) {
 }
 
 // Search functionality
-$('.input-group input').on('keyup', function () {
+$('#store_content').on('keyup', '.input-group input', function () {
     const searchTerm = $(this).val().toLowerCase();
 
     $('#store_tbody tr').each(function () {
@@ -225,7 +227,13 @@ $('#addProductModal').on('hidden.bs.modal', function () {
     resetItemForm();
 });
 
-// Initialize delete button events
+// Event delegation for edit and delete buttons
+$(document).on('click', '.edit-item-btn', function(e) {
+    e.stopPropagation();
+    const index = $(this).data('index');
+    editItem(index);
+});
+
 $(document).on('click', '.delete-item-btn', function(e) {
     e.stopPropagation();
     const index = $(this).data('index');

@@ -1,120 +1,64 @@
-import {customers_db, item_db, order_db} from "../db/db.js";
+import { order_db, item_db, customers_db } from "../db/db.js";
 import OrderModel from "../model/OrderModel.js";
 
+let selectedOrderIndex = -1;
 let currentOrderItems = [];
-let selectedCustomerId = null;
 
 // Initialize the page
 $(document).ready(function () {
-    initializeOrderForm();
-    loadOrdersOnTable();
+    loadOrders();
+    generateNextOrderId(); // Generate initial order ID
 
-    // Set up event listeners
-    $('#addProductBtn').on('click', addProductToOrder);
-    $('#order-place-btn').on('click', placeOrder);
-    $('#new_order_btn').on('click', resetOrderForm);
-    $('#search_order_btn, #search_orders').on('keyup click', function() {
+    // Set current date as default
+    $('#orderDate').val(new Date().toISOString().split('T')[0]);
+
+    // Add product to order
+    $('#addProductBtn').on('click', function() {
+        addProductToOrder();
+    });
+
+    // Place order button
+    $('#order-place-btn').on('click', function() {
+        placeOrder();
+    });
+
+    // New order button
+    $('#new_order_btn').on('click', function() {
+        generateNextOrderId();
+        currentOrderItems = [];
+        updateOrderItemsTable();
+        $('#orderDate').val(new Date().toISOString().split('T')[0]);
+        $('#orderNotes').val('');
+        $('#orderCustomer').val(''); // Clear customer field
+    });
+
+    // Search orders
+    $('#search_order_btn').on('click', function() {
         filterOrders($('#search_orders').val());
+    });
+
+    $('#search_orders').on('keyup', function() {
+        filterOrders($(this).val());
     });
 });
 
-function initializeOrderForm() {
-    // Set current date
-    const today = new Date().toISOString().split('T')[0];
-    $('#orderDate').val(today);
-
-    // Generate next order ID
-    $('#orderId').val(`O${String(currentOrderId).padStart(3, '0')}`);
-
-    // Populate dropdowns
-    populateCustomerDropdown();
-    populateProductDropdown();
-}
-
-// Load orders into the table
-function loadOrdersOnTable() {
-    $('#order_tbody').empty();
-
-    if (order_db.length === 0) {
-        $('#order_tbody').append('<tr><td colspan="6" class="text-center">No orders found</td></tr>');
-        return;
-    }
-
-    order_db.forEach((order, index) => {
-        const customer = customers_db.find(c => c.id == order.customer_id) || {};
-        const totalAmount = order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-        const itemCount = order.items.reduce((sum, item) => sum + item.quantity, 0);
-
-        const row = `
-        <tr data-index="${index}">
-            <td>O${String(order.order_id).padStart(3, '0')}</td>
-            <td>${customer.name || 'Unknown Customer'}</td>
-            <td>${formatDisplayDate(order.date)}</td>
-            <td>${itemCount}</td>
-            <td>Rs. ${totalAmount.toFixed(2)}</td>
-            <td>
-                <button class="btn btn-sm btn-info view-order-btn" data-index="${index}">
-                    <i class="bi bi-eye"></i> View
-                </button>
-            </td>
-        </tr>`;
-        $('#order_tbody').append(row);
-    });
-
-    // Add event listeners to view buttons
-    $('.view-order-btn').on('click', function() {
-        viewOrderDetails($(this).data('index'));
-    });
-}
-
-// Format date for display
-function formatDisplayDate(dateString) {
-    if (!dateString) return '-';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-GB', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-    });
-}
-
+// Generate next order ID
 function generateNextOrderId() {
     if (order_db.length === 0) {
         $('#orderId').val('O001');
         return;
     }
+    const maxId = Math.max(...order_db.map(order => {
+        const idStr = order.id.toString();
+        const numPart = idStr.startsWith('O') ? idStr.substring(1) : idStr;
+        return parseInt(numPart) || 0;
+    }));
 
-    const maxId = Math.max(...order_db.map(o =>
-        parseInt(o.id.substring(1))));
     const nextId = 'O' + String(maxId + 1).padStart(3, '0');
     $('#orderId').val(nextId);
 }
 
-// Populate customer dropdown
-function populateCustomerDropdown() {
-    const dropdown = $('#orderCustomer');
-    dropdown.empty();
-    dropdown.append('<option value="">Select Customer</option>');
-
-    customer_db.forEach(customer => {
-        dropdown.append(`<option value="${customer.id}">${customer.name}</option>`);
-    });
-}
-
-// Populate product dropdown
-function populateProductDropdown() {
-    const dropdown = $('#orderProductSelect');
-    dropdown.empty();
-    dropdown.append('<option value="">Select Product</option>');
-
-    product_db.forEach(product => {
-        if (product.quantity > 0) {
-            dropdown.append(`<option value="${product.id}" data-price="${product.price}">${product.name}</option>`);
-        }
-    });
-}
-
-// Add product to current order
+// Add product to order items
 function addProductToOrder() {
     const productId = $('#orderProductSelect').val();
     const quantity = parseInt($('#orderProductQty').val());
@@ -124,14 +68,14 @@ function addProductToOrder() {
         return;
     }
 
-    const product = product_db.find(p => p.id === productId);
+    const product = item_db.find(p => p.id === productId || p.id.toString() === 'P' + productId.toString().padStart(3, '0'));
     if (!product) {
         showAlert('Error!', 'Selected product not found!', 'error');
         return;
     }
 
-    if (quantity > product.quantity) {
-        showAlert('Insufficient Stock!', `Only ${product.quantity} items available in stock!`, 'error');
+    if (quantity > product.qty) {
+        showAlert('Insufficient Stock!', `Only ${product.qty} items available in stock!`, 'error');
         return;
     }
 
@@ -140,8 +84,8 @@ function addProductToOrder() {
     if (existingItemIndex !== -1) {
         // Update quantity if already exists
         const newQty = currentOrderItems[existingItemIndex].quantity + quantity;
-        if (newQty > product.quantity) {
-            showAlert('Insufficient Stock!', `Cannot add more than available stock (${product.quantity})!`, 'error');
+        if (newQty > product.qty) {
+            showAlert('Insufficient Stock!', `Cannot add more than available stock (${product.qty})!`, 'error');
             return;
         }
         currentOrderItems[existingItemIndex].quantity = newQty;
@@ -166,16 +110,16 @@ function updateOrderItemsTable() {
 
     if (currentOrderItems.length === 0) {
         tableBody.append('<tr><td colspan="5" class="text-center">No items added</td></tr>');
-        $('#orderTotalAmount').text('$0.00');
+        $('#orderTotalAmount').text('Rs. 0.00');
         return;
     }
 
     currentOrderItems.forEach((item, index) => {
         const row = `<tr>
             <td>${item.name}</td>
-            <td>$${item.price.toFixed(2)}</td>
+            <td>Rs. ${item.price.toFixed(2)}</td>
             <td>${item.quantity}</td>
-            <td>$${(item.price * item.quantity).toFixed(2)}</td>
+            <td>Rs. ${(item.price * item.quantity).toFixed(2)}</td>
             <td><button class="btn btn-sm btn-danger remove-item-btn" data-index="${index}"><i class="bi bi-trash"></i></button></td>
         </tr>`;
         tableBody.append(row);
@@ -183,7 +127,7 @@ function updateOrderItemsTable() {
 
     // Calculate and update total
     const total = currentOrderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    $('#orderTotalAmount').text(`$${total.toFixed(2)}`);
+    $('#orderTotalAmount').text(`Rs. ${total.toFixed(2)}`);
 
     // Add event listeners to remove buttons
     $('.remove-item-btn').on('click', function() {
@@ -195,12 +139,12 @@ function updateOrderItemsTable() {
 
 // Place the order
 function placeOrder() {
-    const customerId = $('#orderCustomer').val();
+    const customerName = $('#orderCustomer').val().trim();
     const orderDate = $('#orderDate').val();
     const notes = $('#orderNotes').val();
 
-    if (!customerId) {
-        showAlert('Error!', 'Please select a customer!', 'error');
+    if (!customerName) {
+        showAlert('Error!', 'Please enter customer name!', 'error');
         return;
     }
 
@@ -209,44 +153,81 @@ function placeOrder() {
         return;
     }
 
-    const customer = customers_db.find(c => c.id == customerId);
-    if (!customer) {
-        showAlert('Error!', 'Selected customer not found!', 'error');
-        return;
-    }
-
-    // Calculate total amount
-    const totalAmount = currentOrderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-
-    // Create order
+    // Create order object
     const order = new OrderModel(
+        $('#orderId').val(),
+        null, // No customer ID since we're just using name
+        customerName,
         orderDate,
-        currentOrderId,
-        customerId,
-        customer.name,
-        totalAmount,
         currentOrderItems,
-        notes || null
+        notes || null,
+        'completed'
     );
 
-    // Update inventory
+    // Update product quantities in inventory
     currentOrderItems.forEach(orderItem => {
-        const product = item_db.find(p => p.id == orderItem.id);
+        const product = item_db.find(p => p.id === orderItem.id);
         if (product) {
             product.qty -= orderItem.quantity;
             if (product.qty < 0) product.qty = 0;
         }
     });
 
-    // Save to database
+    // Save changes
     order_db.push(order);
-    currentOrderId++;
+    localStorage.setItem('order_db', JSON.stringify(order_db));
+    localStorage.setItem('item_db', JSON.stringify(item_db));
 
-    showAlert('Success!', `Order #O${String(order.order_id).padStart(3, '0')} placed successfully!`, 'success').then(() => {
+    showAlert('Success!', `Order #${order.id} placed successfully!`, 'success').then(() => {
         $('#createOrderModal').modal('hide');
-        resetOrderForm();
-        loadOrdersOnTable();
-        populateProductDropdown(); // Refresh with updated quantities
+        loadOrders();
+        generateNextOrderId(); // Generate next ID for new order
+    });
+}
+
+// Load orders into the table
+function loadOrders() {
+    $('#order_tbody').empty();
+
+    if (order_db.length === 0) {
+        $('#order_tbody').append('<tr><td colspan="6" class="text-center">No orders found</td></tr>');
+        return;
+    }
+
+    order_db.forEach((order, index) => {
+        const orderDate = order.date ?
+            (order.date instanceof Date ?
+                order.date.toLocaleDateString() :
+                new Date(order.date).toLocaleDateString()) :
+            '-';
+
+        const totalItems = order.items ?
+            order.items.reduce((sum, item) => sum + (item.quantity || 0), 0) :
+            0;
+
+        const totalPrice = order.items ?
+            order.items.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0) :
+            0;
+
+        let row = `<tr data-index="${index}">
+            <td>${order.id || '-'}</td>
+            <td>${order.customerName || order.customer || '-'}</td>
+            <td>${orderDate}</td>
+            <td>${totalItems}</td>
+            <td>Rs. ${totalPrice.toFixed(2)}</td>
+            <td>
+                <button class="btn btn-sm btn-info view-order-btn" data-index="${index}">
+                    <i class="bi bi-eye"></i> Invoice
+                </button>
+            </td>
+        </tr>`;
+        $('#order_tbody').append(row);
+    });
+
+    // Add event listeners to view buttons
+    $('.view-order-btn').on('click', function() {
+        const index = $(this).data('index');
+        viewOrderDetails(index);
     });
 }
 
@@ -255,8 +236,13 @@ function viewOrderDetails(index) {
     const order = order_db[index];
     if (!order) return;
 
-    const customer = customers_db.find(c => c.id == order.customer_id) || {};
-    const orderDate = formatDisplayDate(order.date);
+    const orderDate = order.date ?
+        (order.date instanceof Date ?
+            order.date.toLocaleDateString() :
+            new Date(order.date).toLocaleDateString()) :
+        '-';
+
+    let customerInfo = order.customerName || 'Customer not specified';
 
     let itemsHtml = '';
     order.items.forEach(item => {
@@ -268,18 +254,17 @@ function viewOrderDetails(index) {
         </tr>`;
     });
 
-    const totalAmount = order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const totalPrice = order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
     Swal.fire({
-        title: `Order #O${String(order.order_id).padStart(3, '0')}`,
+        title: `Order #${order.id}`,
         html: `
             <div class="text-start">
                 <p><strong>Date:</strong> ${orderDate}</p>
-                <p><strong>Customer:</strong> ${customer.name || 'Unknown'}</p>
-                <p><strong>Contact:</strong> ${customer.mobile || '-'} ${customer.email ? `<br>${customer.email}` : ''}</p>
-                <div class="table-responsive mt-3">
+                <p><strong>Customer:</strong><br>${customerInfo}</p>
+                <div class="table-responsive">
                     <table class="table table-sm">
-                        <thead class="table-light">
+                        <thead>
                             <tr>
                                 <th>Product</th>
                                 <th>Price</th>
@@ -290,30 +275,20 @@ function viewOrderDetails(index) {
                         <tbody>
                             ${itemsHtml}
                         </tbody>
-                        <tfoot class="table-light">
+                        <tfoot>
                             <tr>
-                                <th colspan="3" class="text-end">Total:</th>
-                                <th>Rs. ${totalAmount.toFixed(2)}</th>
+                                <th colspan="3">Total</th>
+                                <th>Rs. ${totalPrice.toFixed(2)}</th>
                             </tr>
                         </tfoot>
                     </table>
                 </div>
-                ${order.notes ? `<p class="mt-3"><strong>Notes:</strong><br>${order.notes}</p>` : ''}
+                ${order.notes ? `<p><strong>Notes:</strong> ${order.notes}</p>` : ''}
             </div>
         `,
         width: '800px',
         confirmButtonText: 'Close'
     });
-}
-
-// Reset order form
-function resetOrderForm() {
-    currentOrderItems = [];
-    updateOrderItemsTable();
-    $('#orderCustomer').val('');
-    $('#orderNotes').val('');
-    $('#orderId').val(`O${String(currentOrderId).padStart(3, '0')}`);
-    $('#orderDate').val(new Date().toISOString().split('T')[0]);
 }
 
 // Filter orders
@@ -334,3 +309,35 @@ function showAlert(title, text, icon) {
         confirmButtonText: 'OK'
     });
 }
+
+// Load customers into the customer combo box
+function loadCustomersToComboBox() {
+    const customerSelect = $('#orderCustomer');
+    customerSelect.empty();
+    customerSelect.append('<option value="">Select Customer</option>');
+
+    customers_db.forEach(customer => {
+        customerSelect.append(`<option value="${customer.name}">${customer.name}</option>`);
+    });
+}
+
+// Load products into the product combo box
+function loadProductsToComboBox() {
+    const productSelect = $('#orderProductSelect');
+    productSelect.empty();
+    productSelect.append('<option value="">Select Product</option>');
+
+    item_db.forEach(product => {
+        productSelect.append(`<option value="${product.id}">${product.name}</option>`);
+    });
+}
+$('#new_order_btn').on('click', function() {
+    generateNextOrderId();
+    currentOrderItems = [];
+    updateOrderItemsTable();
+    $('#orderDate').val(new Date().toISOString().split('T')[0]);
+    $('#orderNotes').val('');
+    $('#orderCustomer').val('');
+    loadCustomersToComboBox();
+    loadProductsToComboBox();
+});

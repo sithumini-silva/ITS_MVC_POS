@@ -89,9 +89,9 @@ function deleteCustomer(index) {
 $('#customer_save').on('click', function () {
     let id = $('#customer_id').val();
     let name = $('#customerName').val().trim();
-    let address = $('#customerAddress').val().trim();
     let mobile = $('#customerPhone').val().trim();
     let email = $('#customerEmail').val().trim();
+    let address = $('#customerAddress').val().trim();
 
     // Validation
     if (!name || !address || !mobile) {
@@ -127,7 +127,6 @@ $('#customer_save').on('click', function () {
         parseInt(id),
         name,
         address,
-        null, // NIC field (not in your form but in model)
         mobile,
         email
     );

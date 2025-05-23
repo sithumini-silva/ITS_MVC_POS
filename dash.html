@@ -393,8 +393,7 @@
                             </div>
                             <div class="col-md-6 mb-3">
                                 <label for="orderCustomer" class="form-label">Customer</label>
-                                <select class="form-select" id="orderCustomer" required>
-                                </select>
+                                <select id="orderCustomer" class="form-control"></select>
                             </div>
                             <div class="col-md-6 mb-3">
                                 <label for="orderDate" class="form-label">Date</label>
@@ -405,8 +404,7 @@
                         <div class="mb-3">
                             <label class="form-label">Add Products</label>
                             <div class="input-group mb-3">
-                                <select class="form-select" id="orderProductSelect">
-                                </select>
+                                <select id="orderProductSelect" class="form-control"></select>
                                 <input type="number" class="form-control" placeholder="Qty" id="orderProductQty" min="1" value="1" style="max-width: 80px;">
                                 <button class="btn btn-outline-secondary" type="button" id="addProductBtn">Add</button>
                             </div>
@@ -422,12 +420,6 @@
                                     </tr>
                                     </thead>
                                     <tbody id="orderItemsTable">
-                                    <!--                                    <tr>-->
-                                    <!--                                        <td>Laptop</td>-->
-                                    <!--                                        <td>Rs. 45,000.00</td>-->
-                                    <!--                                        <td>1</td>-->
-                                    <!--                                        <td>Rs. 45,000.00</td>-->
-                                    <!--                                    </tr>-->
                                     </tbody>
                                 </table>
                             </div>
